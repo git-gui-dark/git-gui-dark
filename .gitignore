@@ -1,0 +1,19 @@
+# OS / shell clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+
+# PowerShell editor / temp
+*.ps1~
+*.tmp
+*.bak
+
+# IDE / editor
+.vs/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
