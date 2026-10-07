@@ -1,10 +1,11 @@
 # git-gui-dark
 
-A dark-theme launcher for the official Git GUI on Windows, distributed as a single-file PowerShell script and packaged for [Scoop](https://scoop.sh) from a personal bucket in this repo.
+A dark-theme launcher for the official Git GUI on Windows, distributed as a PowerShell script + a Tcl bootstrap template and packaged for [Scoop](https://scoop.sh) from a personal bucket in this repo.
 
 ## Install
 
 ```
+scoop bucket add git-gui-dark https://github.com/git-gui-dark/git-gui-dark
 scoop install git-gui-dark/git-gui-dark
 ```
 

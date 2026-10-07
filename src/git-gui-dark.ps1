@@ -283,10 +283,15 @@ function Invoke-Install {
     Write-Verbose ("Tcl template : " + $template.Path)
 
     # 1. Bootstrap file
+    $overwriteBootstrap = $true
     if ((Test-Path $bootstrap) -and -not $Force) {
-        Write-Host "Dark theme bootstrap is already installed." -ForegroundColor Yellow
+        $answer = Read-Host "Bootstrap already installed at $bootstrap. Overwrite? (y/N)"
+        if ($answer -ne 'y' -and $answer -ne 'Y') {
+            Write-Host "Skipped bootstrap." -ForegroundColor Yellow
+            $overwriteBootstrap = $false
+        }
     }
-    else {
+    if ($overwriteBootstrap) {
         Write-BootstrapFromTemplate -Template $template.Content `
             -GitGuiTclPath $git.GitGuiTcl `
             -GitBinPaths $git.GitBins `
@@ -297,10 +302,15 @@ function Invoke-Install {
     }
 
     # 2. Context-menu override (HKCU-only; mirrors the system label/icon)
+    $overwriteContextMenu = $true
     if ((Test-Path 'HKCU:\Software\Classes\Directory\shell\git_gui') -and -not $Force) {
-        Write-Host "Context-menu override is already installed." -ForegroundColor Yellow
+        $answer = Read-Host "Context-menu override already installed. Re-register? (y/N)"
+        if ($answer -ne 'y' -and $answer -ne 'Y') {
+            Write-Host "Skipped context-menu override." -ForegroundColor Yellow
+            $overwriteContextMenu = $false
+        }
     }
-    else {
+    if ($overwriteContextMenu) {
         Register-ContextMenu -ScriptPath $PSCommandPath
     }
 }
@@ -365,6 +375,16 @@ function Invoke-Run {
 # No subcommand supplied -> default to `run` (a bare `git-gui-dark` launches
 # git-gui in dark mode once installed). Subcommand match is case-insensitive.
 $resolved = if ($Subcommand) { $Subcommand.ToLowerInvariant() } else { 'run' }
+
+# A flag-shaped first token (e.g. `git-gui-dark --working-dir <p>`) means
+# "bare run with passthrough" -- the spec's user story 3 "or" form. PowerShell's
+# param binder already collected the flag + its value in $Passthrough; route
+# to `run` and prepend the captured token so the run path sees the same argv
+# it would for the explicit `run --working-dir <p>` form.
+if ($Subcommand -like '-*') {
+    $Passthrough = @($Subcommand) + $Passthrough
+    $resolved = 'run'
+}
 
 switch ($resolved) {
     'help' {

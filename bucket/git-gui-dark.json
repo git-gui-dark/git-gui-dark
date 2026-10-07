@@ -6,10 +6,10 @@
   "url": "https://github.com/git-gui-dark/git-gui-dark/releases/download/v1.0.0/git-gui-dark-1.0.0.zip",
   "hash": "B7BF9A410DF6499E971DCB096EFBFE053FCC29C62380DB5724EA2B39D26F322C",
   "bin": "git-gui-dark.ps1",
-  "post_install": "powershell.exe -ExecutionPolicy Bypass -File \"$dir\\git-gui-dark.ps1\" install",
+  "post_install": "powershell.exe -ExecutionPolicy Bypass -File \"$dir\\git-gui-dark.ps1\" install -Force",
   "pre_uninstall": "powershell.exe -ExecutionPolicy Bypass -File \"$dir\\git-gui-dark.ps1\" uninstall -Force",
   "checkver": {
-    "github": "git-gui-dark/git-gui-dark"
+    "github": "https://github.com/git-gui-dark/git-gui-dark"
   },
   "autoupdate": {
     "url": "https://github.com/git-gui-dark/git-gui-dark/releases/download/v$version/git-gui-dark-$version.zip"
