@@ -103,3 +103,40 @@ Describe 'Write-DarkModeConfig' {
         $content | Should Match 'menuDarkModeEnabled 0'
     }
 }
+
+Describe 'Get-CffiBundleSource' {
+    It 'returns $null when neither layout candidate exists' {
+        $isolated = Join-Path $TestDrive 'no-script-dir'
+        New-Item -ItemType Directory -Path $isolated -Force | Out-Null
+        Get-CffiBundleSource -ScriptRoot $isolated | Should BeNullOrEmpty
+    }
+
+    It 'resolves to the release-layout candidate when cffi sits at the script root' {
+        $root = Join-Path $TestDrive 'rel-root'
+        $cffi = Join-Path $root 'cffi'
+        New-Item -ItemType Directory -Path $cffi -Force | Out-Null
+        Get-CffiBundleSource -ScriptRoot $root | Should Be (Resolve-Path -LiteralPath $cffi).Path
+    }
+
+    It 'resolves to the source-layout candidate when only assets\cffi exists' {
+        # Source layout: launcher at <root>\src, CFFI at <root>\assets\cffi.
+        # $ScriptRoot is treated as $PSScriptRoot (the launcher's own directory),
+        # so from <root>\src, "..\assets\cffi" lands one level up at <root>\assets\cffi.
+        $repoRoot   = Join-Path $TestDrive 'fake-repo-src'
+        $launcherDir = Join-Path $repoRoot 'src'
+        $cffi       = Join-Path $repoRoot 'assets\cffi'
+        New-Item -ItemType Directory -Path $cffi -Force | Out-Null
+        Get-CffiBundleSource -ScriptRoot $launcherDir | Should Be (Resolve-Path -LiteralPath $cffi).Path
+    }
+
+    It 'prefers the release layout over the source layout when both exist' {
+        # From <root>\src, "cffi" is release-layout, "..\assets\cffi" is source-layout.
+        $repoRoot   = Join-Path $TestDrive 'fake-repo-both'
+        $launcherDir = Join-Path $repoRoot 'src'
+        $rel        = Join-Path $launcherDir 'cffi'
+        $src        = Join-Path $repoRoot 'assets\cffi'
+        New-Item -ItemType Directory -Path $rel -Force | Out-Null
+        New-Item -ItemType Directory -Path $src -Force | Out-Null
+        Get-CffiBundleSource -ScriptRoot $launcherDir | Should Be (Resolve-Path -LiteralPath $rel).Path
+    }
+}

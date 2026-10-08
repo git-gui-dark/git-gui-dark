@@ -73,13 +73,16 @@
     # Remove the dark theme bootstrap + context-menu override.
 
 .NOTES
-    Part of Spec 0001 (issue #1) + Spec 0002 / T1 (issue #8). The Tcl
-    template lives in assets\bootstrap.tcl in this repo; the release zip
-    flattens it to the root next to the script. The optional Win32 dark-mode
-    helper (win32-dark.ps1) is also at the zip root in the release layout
-    and at src\win32-dark.ps1 in the source layout; it is dot-sourced at
-    startup and is a no-op when absent or when the running build is not on
-    the allowlist.
+    Part of Spec 0001 (issue #1) + Spec 0002 / T1 (issue #8) + Spec 0002 /
+    T2 (issue #9). The Tcl template lives in assets\bootstrap.tcl in this
+    repo; the release zip flattens it to the root next to the script. The
+    optional Win32 dark-mode helper (win32-dark.ps1) is also at the zip
+    root in the release layout and at src\win32-dark.ps1 in the source
+    layout; it is dot-sourced at startup and is a no-op when absent or when
+    the running build is not on the allowlist. The bundled CFFI menu-dark
+    package lives at cffi\ in the release zip root and at assets\cffi\ in
+    the source layout; install copies it to %LOCALAPPDATA%\git-gui-dark\cffi\
+    when the running build is on the supported-builds allowlist.
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
@@ -180,6 +183,48 @@ function Get-TclTemplate {
     Write-Host "Tcl template not found next to the script." -ForegroundColor Red
     Write-Host ("Looked for: " + ($candidates -join ' ; ')) -ForegroundColor Yellow
     exit 1
+}
+
+function Get-CffiBundleSource {
+<#
+.SYNOPSIS
+    Locate the bundled CFFI package for the installer's Copy-CffiBundle.
+
+.DESCRIPTION
+    Two-path resolution identical in shape to Get-TclTemplate: release
+    layout (the zip root has a `cffi\` directory next to git-gui-dark.ps1)
+    wins, then source layout (this repo, where the launcher sits in
+    `src\` and the bundle sits in `assets\cffi\`).
+
+    Returns the resolved absolute path, or $null if neither candidate
+    exists. Invoke-Install treats the missing case as installer-fatal:
+    a release that omits CFFI is broken, and an in-tree run where
+    `assets/cffi/` has been deleted is a hard error.
+
+.PARAMETER ScriptRoot
+    Override the directory used for the release-layout candidate lookup.
+    Defaults to $PSScriptRoot (the launcher's own directory). Tests use
+    this to drive isolated layouts.
+#>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [string]$ScriptRoot = $PSScriptRoot
+    )
+
+    $candidates = @(
+        (Join-Path $ScriptRoot 'cffi'),
+        (Join-Path $ScriptRoot '..\assets\cffi')
+    )
+    foreach ($p in $candidates) {
+        # PathType Container: a file (not a directory) named `cffi` at the
+        # script root would otherwise match Test-Path, then blow up
+        # confusingly inside Copy-CffiBundle. We want directories only.
+        if (Test-Path -LiteralPath $p -PathType Container) {
+            return (Resolve-Path -LiteralPath $p).Path
+        }
+    }
+    return $null
 }
 
 function Write-BootstrapFromTemplate {
@@ -481,7 +526,12 @@ function Invoke-Install {
     # make sure no stale bundle is left behind from a prior install.
     $cffiDst = Join-Path $darkDir 'cffi'
     if ($darkModeEnabled) {
-        $cffiSrc = Join-Path $PSScriptRoot '..\assets\cffi'
+        $cffiSrc = Get-CffiBundleSource
+        if (-not $cffiSrc) {
+            Write-Host "CFFI bundle not found next to the script." -ForegroundColor Red
+            Write-Host ("Looked for: cffi\  ;  ..\assets\cffi\  (under " + $PSScriptRoot + ")") -ForegroundColor Yellow
+            exit 1
+        }
         Copy-CffiBundle -Source $cffiSrc -Destination $cffiDst
         Write-Host "CFFI menu-dark bundle installed." -ForegroundColor Green
         Write-Host ("  " + $cffiDst) -ForegroundColor DarkGray
