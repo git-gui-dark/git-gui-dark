@@ -425,7 +425,7 @@ function Launch-GitGui {
 # ----- Subcommand handlers (primary test seams per Spec 0001) -------------
 
 function Invoke-Help {
-@"
+@'
 git-gui-dark - dark theme for the official Git GUI on Windows
 
 Usage:
@@ -437,11 +437,11 @@ Usage:
     git-gui-dark run                   Launch git-gui in dark mode (assumes installed)
     git-gui-dark run --working-dir <p> Launch git-gui in <p>
     git-gui-dark uninstall             Remove the dark theme (asks to confirm)
+    git-gui-dark uninstall -Force      Remove the dark theme without prompting
 
 On supported Windows builds (e.g. Win10 22H2 / 19045.6466+), `run` also
 darkens the OS title bar of git-gui's main window. No flag needed; the
 helper auto-skips on unsupported builds.
-    git-gui-dark uninstall -Force      Remove the dark theme without prompting
 
 Subcommand flags:
     install     -Force, -GitPath <p>
@@ -451,7 +451,7 @@ Subcommand flags:
 
 Full parameter descriptions and examples:
     Get-Help .\git-gui-dark.ps1 -Full
-"@
+'@
 }
 
 function Invoke-Install {
