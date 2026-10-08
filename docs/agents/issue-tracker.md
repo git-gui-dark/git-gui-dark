@@ -10,9 +10,19 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - **Make an issue a sub-issue of a parent**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards (`gh` 2.94+). Older `gh`: `gh api --method POST repos/<owner>/<repo>/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>` (database id, as in **Blocking** below). Without sub-issues, put `Part of #<parent>` at the top of the child body.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."`
+- **Close**: `gh issue close <number> --comment "..."` — and update the Acceptance criteria checkboxes in the body first; see [Closing or transitioning](#closing-or-transitioning-an-issue).
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
+
+## Closing or transitioning an issue
+
+The issue **body** is the source of truth for which acceptance criteria are met (the `- [ ]` / `- [x]` checkboxes). **Comments are notes, not state.** When a workflow step says to close an issue, relabel it, or otherwise mark it as done:
+
+1. Update the body's Acceptance criteria checkboxes (`- [ ]` -> `- [x]`) to reflect which criteria are actually met. For tickets that close with one criterion outstanding (e.g. a manual visual check on a real machine), leave that one box unchecked and the issue open under a `ready-for-human` label.
+2. Then close / relabel / re-open as the workflow says.
+3. `gh issue edit <n> --body-file <path>` is how to replace the body. `gh` has no in-place patch mode, so write the new body to a temp file and pass it in. Fetch the current body first (`gh issue view <n> --json body --jq .body`) if you're not sure what's in it, and preserve everything except the checkboxes.
+
+A close-with-comment but stale-checkboxes is the failure mode this rule prevents: the next reader of the issue can't tell at a glance which criteria were met vs. deferred.
 
 ## Pull requests as a triage surface
 
