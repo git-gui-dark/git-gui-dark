@@ -9,6 +9,8 @@
         dark Tk palette and hands off to the real git-gui.tcl.
       - Optionally adds an HKCU registry override so Windows Explorer's
         "Open Git GUI here" context-menu entry launches git-gui in dark mode.
+      - On supported Windows builds, also drives DWMWA_USE_IMMERSIVE_DARK_MODE
+        so the OS title bar of git-gui's main window renders dark.
 
     Nothing inside the Git installation itself is modified.
 
@@ -71,9 +73,13 @@
     # Remove the dark theme bootstrap + context-menu override.
 
 .NOTES
-    Part of Spec 0001 (issue #1). The Tcl template lives in
-    assets\bootstrap.tcl in this repo; the release zip flattens it to the root
-    next to the script.
+    Part of Spec 0001 (issue #1) + Spec 0002 / T1 (issue #8). The Tcl
+    template lives in assets\bootstrap.tcl in this repo; the release zip
+    flattens it to the root next to the script. The optional Win32 dark-mode
+    helper (win32-dark.ps1) is also at the zip root in the release layout
+    and at src\win32-dark.ps1 in the source layout; it is dot-sourced at
+    startup and is a no-op when absent or when the running build is not on
+    the allowlist.
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
@@ -95,6 +101,22 @@ $ErrorActionPreference = 'Stop'
 
 $darkDir   = Join-Path $env:LOCALAPPDATA 'git-gui-dark'
 $bootstrap = Join-Path $darkDir 'bootstrap.tcl'
+
+# ----- Optional helper: Win32 dark-mode (Spec 0002 / T1) -------------------
+# The helper is optional. If win32-dark.ps1 is not bundled next to the
+# launcher (e.g. an older release still in use), git-gui-dark.ps1 must
+# keep working - the existing Tk-palette dark theme is the safety net.
+# Dot-sourcing the helper exposes Apply-Win32DarkModeToPid to Launch-GitGui.
+$win32DarkHelperPath = $null
+foreach ($p in @((Join-Path $PSScriptRoot 'win32-dark.ps1'))) {
+    if (Test-Path -LiteralPath $p) {
+        $win32DarkHelperPath = (Resolve-Path -LiteralPath $p).Path
+        break
+    }
+}
+if ($win32DarkHelperPath) {
+    . $win32DarkHelperPath
+}
 
 # ----- Helpers (lower-priority test seams per Spec 0001) -------------------
 
@@ -228,7 +250,27 @@ function Launch-GitGui {
         [string[]]$Passthrough
     )
     $argList = @($Bootstrap) + $Passthrough
-    & $Wish @argList
+
+    # Start-Process -PassThru (rather than the call operator `&`) so the
+    # parent process keeps a Process handle to wish.exe. This is what lets
+    # Apply-Win32DarkModeToPid poll for the main window and apply
+    # DWMWA_USE_IMMERSIVE_DARK_MODE before WaitForExit blocks.
+    $proc = Start-Process -FilePath $Wish -ArgumentList $argList -PassThru
+
+    # Spec 0002 / T1: on a supported Windows build, additionally apply
+    # DWMWA_USE_IMMERSIVE_DARK_MODE to wish.exe's main window so the OS
+    # title bar renders dark. Silent no-op if the helper is absent or the
+    # build is not on the allowlist; never throws.
+    if (Get-Command -Name Apply-Win32DarkModeToPid -ErrorAction SilentlyContinue) {
+        try {
+            Apply-Win32DarkModeToPid -Process $proc
+        }
+        catch {
+            # A dark-mode failure must never break a launch.
+        }
+    }
+
+    $proc.WaitForExit()
 }
 
 # ----- Subcommand handlers (primary test seams per Spec 0001) -------------
@@ -246,6 +288,10 @@ Usage:
     git-gui-dark run                   Launch git-gui in dark mode (assumes installed)
     git-gui-dark run --working-dir <p> Launch git-gui in <p>
     git-gui-dark uninstall             Remove the dark theme (asks to confirm)
+
+On supported Windows builds (e.g. Win10 22H2 / 19045.6466+), `run` also
+darkens the OS title bar of git-gui's main window. No flag needed; the
+helper auto-skips on unsupported builds.
     git-gui-dark uninstall -Force      Remove the dark theme without prompting
 
 Subcommand flags:
