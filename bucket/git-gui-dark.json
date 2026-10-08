@@ -1,10 +1,10 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Dark theme launcher for the official Git GUI on Windows",
   "homepage": "https://github.com/git-gui-dark/git-gui-dark",
   "license": "MIT",
-  "url": "https://github.com/git-gui-dark/git-gui-dark/releases/download/v1.1.0/git-gui-dark-1.1.0.zip",
-  "hash": "1D4A319E978811716A68BE7E8C6378086E48EDB4C905CC4CE14F4BCA33085C8F",
+  "url": "https://github.com/git-gui-dark/git-gui-dark/releases/download/v1.1.1/git-gui-dark-1.1.1.zip",
+  "hash": "8B888579FEC563CD65EF7AD754BA0C236FB9665C8EFF775A896F0B338AFD0472",
   "bin": "git-gui-dark.ps1",
   "post_install": "powershell.exe -ExecutionPolicy Bypass -File \"$dir\\git-gui-dark.ps1\" install -Force",
   "pre_uninstall": "powershell.exe -ExecutionPolicy Bypass -File \"$dir\\git-gui-dark.ps1\" uninstall -Force",
