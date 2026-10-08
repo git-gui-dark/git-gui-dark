@@ -38,6 +38,16 @@ Multi-context repo (presence of `GLOSSARY-MAP.md` at the root):
         └── docs/adr/
 ```
 
+## Specs
+
+Specs are GitHub issues, written by the `/to-spec` step. Follow this convention so specs are consistent and discoverable across sessions:
+
+- **Title format**: `Spec NNNN: <title>`, where `NNNN` is the next sequential 4-digit zero-padded number after the highest existing spec. Discover existing specs with `gh issue list --state all --json number,title` and filter titles starting with `Spec `.
+- **Body header**: the body opens with an H1 mirroring the title (e.g. `# Spec 0002: <title>`). This keeps offline copies and email forwards readable as standalone documents.
+- **Numbering is independent of issue numbers**. Spec 0001 may be issue #1 in a fresh repo, but `/to-tickets` issues (T1, T2, ...) take their own issue numbers from the same counter and are NOT specs. The next spec number is `(max existing Spec NNNN) + 1`.
+- **No local mirror** in this repo - `docs/specs/` does not exist. The GitHub issue is the source of truth. If a future change adds one, mirror each spec body to `docs/specs/NNNN-<slug>.md` and reference it from the issue.
+- **Triage label**: apply `ready-for-agent` at issue-creation time so `/implement` picks the spec up directly without re-triage.
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.
