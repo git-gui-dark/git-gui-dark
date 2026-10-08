@@ -77,6 +77,54 @@ option add *TCheckbutton.foreground       "#d4d4d4"  widgetDefault
 option add *TRadiobutton.foreground       "#d4d4d4"  widgetDefault
 option add *TEntry.foreground             "#d4d4d4"  widgetDefault
 
+# --- Win32 menu dark mode (Spec 0002 / T2) --------------------------------
+# Forces the Tk menubar (Repository / Branch / Remote / Tools / Help) and
+# its dropdowns to render in dark mode by calling uxtheme.dll's
+# undocumented SetPreferredAppMode / FlushMenuThemes. cffi resolves
+# symbols by name only, so we use the function names (the same code
+# paths that the well-known ordinals 135/136 dispatch to on Win10 19041+
+# and Win11).
+#
+# Silent no-op if any of the following hold:
+#   - install-time detection wrote menuDarkModeEnabled = 0
+#   - darkmode-config.tcl is missing
+#   - CFFI fails to load (missing DLL, platform mismatch, ...)
+#   - uxtheme.dll is missing the expected exports
+# In all failure modes we fall back to the Tk-palette dark theme above.
+
+set ::gitGuiDark::menuDarkModeEnabled 0
+if {[catch {source [file join [file dirname [info script]] darkmode-config.tcl]} _err]} { }
+
+if {$::gitGuiDark::menuDarkModeEnabled eq "1"} {
+    # Make the bundled CFFI package discoverable. Tcl does NOT recurse
+    # into subdirectories on auto_path, so we point at the dir that
+    # directly contains pkgIndex.tcl.
+    lappend auto_path [file join [file dirname [info script]] cffi]
+
+    if {![catch {package require cffi} _err]} {
+        if {![catch {
+            cffi::Wrapper declare uxtheme {
+                int  SetPreferredAppMode(int mode)
+                void FlushMenuThemes(void)
+            }
+            uxtheme define uxtheme.dll
+
+            # 1 = AllowDark. Must run BEFORE the menubar is built so the
+            # first paint already requests the dark theme.
+            uxtheme SetPreferredAppMode 1
+
+            # Invalidate cached menu brushes. Scheduled via after idle so
+            # it runs after git-gui.tcl has built its menus.
+            after idle [list apply [list {} {
+                catch {uxtheme FlushMenuThemes}
+            }]]
+        } _err]} {
+            # success
+        }
+    }
+}
+catch {unset _err}
+
 # Hand off via the launcher (which handles --working-dir before sourcing
 # git-gui.tcl). The launcher's lib-path computation uses $argv0 above.
 source $::__gitGuiLauncher
