@@ -303,6 +303,7 @@ function Write-DarkModeConfig {
                "# 1 = running build is on the supported-builds allowlist.`r`n" +
                "# 0 = unsupported (or detection failed). The bootstrap reads`r`n" +
                "# this and silently skips the CFFI/uxtheme path when 0.`r`n" +
+               "namespace eval ::gitGuiDark {}`r`n" +
                "set ::gitGuiDark::menuDarkModeEnabled $flag`r`n"
     # Tcl parses a BOM as junk on line 1; write UTF-8 without BOM.
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -324,9 +325,25 @@ function Launch-GitGui {
     param(
         [string]$Wish,
         [string]$Bootstrap,
-        [string[]]$Passthrough
+        [Parameter()]
+
+        # The dispatcher may pass an empty `@()` for `Passthrough` on a
+        # bare `run` (no --working-dir etc.). PowerShell's binder treats
+        # `@()` as "no value" for [string[]] without [AllowEmptyCollection]
+        # and substitutes the parameter default - which is $null. Allow
+        # both null and empty so the empty-array case reaches this body
+        # and we can filter it explicitly.
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$Passthrough = @()
     )
-    $argList = @($Bootstrap) + $Passthrough
+
+    # Filter out any null/empty entries that snuck through. The trailing
+    # + below is fine on an empty @() but would produce `@($Bootstrap,
+    # $null)` if Passthrough is $null (one null element) - and Start-Process
+    # rejects -ArgumentList containing a null.
+    $cleanPassthrough = @($Passthrough) | Where-Object { $_ }
+    $argList = @($Bootstrap) + $cleanPassthrough
 
     # Start-Process -PassThru (rather than the call operator `&`) so the
     # parent process keeps a Process handle to wish.exe. This is what lets
@@ -510,7 +527,14 @@ function Invoke-Run {
     [CmdletBinding()]
     param(
         [string]$GitPath,
-        [string[]]$Passthrough
+
+        # Empty `@()` (bare `run` with no --working-dir) must reach this
+        # body so Launch-GitGui can see it - PowerShell 5.1 collapses
+        # `@()` to $null for [string[]] without [AllowEmptyCollection].
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$Passthrough = @()
     )
 
     $git = Find-GitForWindows -Hint $GitPath

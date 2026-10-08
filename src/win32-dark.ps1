@@ -73,6 +73,15 @@ namespace GitGuiDark {
 
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+            int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
     }
 }
 "@
@@ -240,13 +249,49 @@ function Set-Win32WindowDarkMode {
     if ($WindowHandle -eq [IntPtr]::Zero) { return $false }
 
     $useDark = 1
+    # cbAttribute is the size of the value buffer in bytes - 4 for a
+    # BOOL / int. Marshal.SizeOf([int]) is unreliable here: PowerShell's
+    # binder marshals the type token as a struct value and throws
+    # "Cannot marshal System.RuntimeType". The literal works.
+    $attrSize = 4
     $hr = [GitGuiDark.Native]::DwmSetWindowAttribute(
         $WindowHandle,
         [int]$script:DarkModeAttribute,
         [ref]$useDark,
-        [System.Runtime.InteropServices.Marshal]::SizeOf([int])
+        [int]$attrSize
     )
-    return ($hr -eq 0)
+    if ($hr -ne 0) { return $false }
+
+    # Force the non-client area (title bar / borders) to repaint so the
+    # dark attribute shows on the very next frame, not just after the
+    # user drags the window. SWP_FRAMECHANGED alone only sends
+    # WM_NCCALCSIZE (recalculates the frame); we also need
+    # RedrawWindow with RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW
+    # to actually invalidate and repaint the non-client area.
+    $SWP_NOMOVE       = 0x0002
+    $SWP_NOSIZE       = 0x0001
+    $SWP_NOZORDER     = 0x0004
+    $SWP_FRAMECHANGED = 0x0020
+    $swpFlags = $SWP_NOMOVE -bor $SWP_NOSIZE -bor $SWP_NOZORDER -bor $SWP_FRAMECHANGED
+    $null = [GitGuiDark.Native]::SetWindowPos(
+        $WindowHandle,
+        [IntPtr]::Zero,
+        0, 0, 0, 0,
+        [uint32]$swpFlags
+    )
+
+    $RDW_INVALIDATE = 0x0001
+    $RDW_UPDATENOW  = 0x0100
+    $RDW_FRAME      = 0x0400
+    $rdwFlags = $RDW_INVALIDATE -bor $RDW_UPDATENOW -bor $RDW_FRAME
+    $null = [GitGuiDark.Native]::RedrawWindow(
+        $WindowHandle,
+        [IntPtr]::Zero,
+        [IntPtr]::Zero,
+        [uint32]$rdwFlags
+    )
+
+    return $true
 }
 
 function Get-WishMainWindowHandle {

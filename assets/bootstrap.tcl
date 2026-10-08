@@ -92,6 +92,9 @@ option add *TEntry.foreground             "#d4d4d4"  widgetDefault
 #   - uxtheme.dll is missing the expected exports
 # In all failure modes we fall back to the Tk-palette dark theme above.
 
+# Tcl creates a namespace on first reference, but `set ::ns::var` errors
+# if the namespace doesn't exist yet - so explicitly create it first.
+namespace eval ::gitGuiDark {}
 set ::gitGuiDark::menuDarkModeEnabled 0
 if {[catch {source [file join [file dirname [info script]] darkmode-config.tcl]} _err]} { }
 
@@ -109,14 +112,42 @@ if {$::gitGuiDark::menuDarkModeEnabled eq "1"} {
             }
             uxtheme define uxtheme.dll
 
+            cffi::Wrapper declare user32 {
+                BOOL DrawMenuBar(HWND hWnd)
+                LRESULT SendMessageW(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+            }
+            user32 define user32.dll
+
+            cffi::Wrapper declare dwmapi {
+                LONG DwmSetWindowAttribute(HWND hwnd, DWORD attribute, int *pvAttribute, DWORD cbAttribute)
+            }
+            dwmapi define dwmapi.dll
+
             # 1 = AllowDark. Must run BEFORE the menubar is built so the
             # first paint already requests the dark theme.
             uxtheme SetPreferredAppMode 1
 
-            # Invalidate cached menu brushes. Scheduled via after idle so
-            # it runs after git-gui.tcl has built its menus.
+            # In-process post-show fixups: invalidate the menu brush
+            # cache, force the menubar to repaint, send WM_THEMECHANGED
+            # to the window, and apply DWMWA_USE_IMMERSIVE_DARK_MODE
+            # directly via cffi. Doing this in-process (rather than from
+            # the launcher's PowerShell) means the timing is right: the
+            # window is fully shown, we have the HWND directly via
+            # `winfo id .`, and we are inside the wish process so the
+            # attributes apply to the same paint cycle.
             after idle [list apply [list {} {
-                catch {uxtheme FlushMenuThemes}
+                if {[catch {uxtheme FlushMenuThemes} _err]} { }
+                if {[catch {
+                    set hwnd [winfo id .]
+                    user32 DrawMenuBar $hwnd
+                    # WM_THEMECHANGED (0x031A) - force theme re-evaluation.
+                    user32 SendMessageW $hwnd 0x031A 0 0
+                    # Apply the title-bar dark attribute. cffi passes
+                    # `useDark` by reference (Tcl variable address); the
+                    # C function reads 4 bytes from that address.
+                    set useDark 1
+                    dwmapi DwmSetWindowAttribute $hwnd 20 useDark 4
+                } _err]} { }
             }]]
         } _err]} {
             # success
