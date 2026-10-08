@@ -268,7 +268,11 @@ function Register-ContextMenu {
     if (-not (Test-Path $cmdKey)) {
         New-Item -Path $cmdKey -Force | Out-Null
     }
-    $cmdValue = 'powershell.exe -ExecutionPolicy Bypass -File ' +
+    # -WindowStyle Hidden: keep the spawned PS terminal invisible. The
+    # context-menu launcher is intended to be a no-window UX; the
+    # launcher script returns to the caller as soon as wish.exe has
+    # launched and the DWM title-bar apply window has completed.
+    $cmdValue = 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ' +
                 '"' + $ScriptPath + '"' +
                 ' run --working-dir "%1"'
     Set-ItemProperty -Path $cmdKey -Name '(default)' -Value $cmdValue
@@ -393,7 +397,8 @@ function Launch-GitGui {
     # Start-Process -PassThru (rather than the call operator `&`) so the
     # parent process keeps a Process handle to wish.exe. This is what lets
     # Apply-Win32DarkModeToPid poll for the main window and apply
-    # DWMWA_USE_IMMERSIVE_DARK_MODE before WaitForExit blocks.
+    # DWMWA_USE_IMMERSIVE_DARK_MODE during the apply window before the
+    # launcher exits.
     $proc = Start-Process -FilePath $Wish -ArgumentList $argList -PassThru
 
     # Spec 0002 / T1: on a supported Windows build, additionally apply
@@ -409,7 +414,12 @@ function Launch-GitGui {
         }
     }
 
-    $proc.WaitForExit()
+    # No wait on the wish process: the launcher returns as soon as the DWM
+    # apply window finishes (success or timeout). wish.exe keeps running
+    # independently. This keeps the context-menu spawner invisible
+    # (Spec 0002 follow-up: context-menu launch leaves PowerShell
+    # terminal visible until git-gui closes) and lets the bare
+    # `git-gui-dark` CLI return promptly without blocking on wish.exe.
 }
 
 # ----- Subcommand handlers (primary test seams per Spec 0001) -------------

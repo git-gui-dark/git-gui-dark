@@ -140,3 +140,41 @@ Describe 'Get-CffiBundleSource' {
         Get-CffiBundleSource -ScriptRoot $launcherDir | Should Be (Resolve-Path -LiteralPath $rel).Path
     }
 }
+
+Describe 'Spec 0002 follow-up: context-menu launch (#12)' {
+    # Both fixes are structural (cmd string for the context-menu spawner;
+    # removal of WaitForExit from Launch-GitGui). The functions themselves
+    # are not safe to invoke from a unit test (Register-ContextMenu writes
+    # HKCU, Launch-GitGui launches wish.exe), so we assert on the AST body
+    # text - same pattern the rest of this file uses to find the helpers.
+
+    It 'Register-ContextMenu adds -WindowStyle Hidden to the spawned cmd' {
+        $regCtx = $funcAsts | Where-Object { $_.Name -eq 'Register-ContextMenu' } | Select-Object -First 1
+        $regCtx                       | Should Not BeNullOrEmpty
+        $regCtx.Body.Extent.Text      | Should Match '-WindowStyle Hidden'
+    }
+
+    It 'Register-ContextMenu keeps -ExecutionPolicy Bypass and the script-path invocation intact' {
+        # Make sure the new flag did not displace the existing switches.
+        $regCtx = $funcAsts | Where-Object { $_.Name -eq 'Register-ContextMenu' } | Select-Object -First 1
+        $body = $regCtx.Body.Extent.Text
+        $body | Should Match '-ExecutionPolicy Bypass'
+        $body | Should Match 'run --working-dir "%1"'
+    }
+
+    It 'Launch-GitGui does not call WaitForExit on the wish process' {
+        # Match the actual call pattern (with the variable prefix and the
+        # opening paren) so the explanatory comment in the function body -
+        # which still mentions WaitForExit for context - does not trip it.
+        $launch = $funcAsts | Where-Object { $_.Name -eq 'Launch-GitGui' } | Select-Object -First 1
+        $launch                       | Should Not BeNullOrEmpty
+        $launch.Body.Extent.Text      | Should Not Match '\$proc\.WaitForExit\('
+    }
+
+    It 'Launch-GitGui still applies DWMWA_USE_IMMERSIVE_DARK_MODE before exiting' {
+        # The T1 cross-process DWM apply is what gives us the title bar.
+        # Removing WaitForExit must not have removed this call.
+        $launch = $funcAsts | Where-Object { $_.Name -eq 'Launch-GitGui' } | Select-Object -First 1
+        $launch.Body.Extent.Text | Should Match 'Apply-Win32DarkModeToPid'
+    }
+}
